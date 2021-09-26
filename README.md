@@ -15,7 +15,8 @@ pip install edge-ml
 ```python
 from edge-ml import edge-ml
 
-project = edge-ml.getProject("https://app.edge-ml.org", PROJECT_API_KEY) # get the API key from the settings of your project
+# get the API key from the settings of your project
+project = edge-ml.getProject("https://app.edge-ml.org", PROJECT_API_KEY) 
 ```
 
 ## Development
