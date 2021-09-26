@@ -11,7 +11,7 @@ Install edge-ml using the follwing command.
 pip install edge-ml
 ```
 
-### Get Project Datasets
+### Get Project
 ```python
 from edge-ml import edge-ml
 
