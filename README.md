@@ -32,7 +32,6 @@ collector = edgeml.datasetCollector("https://app.edge-ml.org",
                                     "Example Dataset", # name the dataset you would like to upload
                                     False) # do not use server timestamps
 
-labels = [random.randint(1,3) for i in range(500)]
 for i in range(500):
     current_time = startTime + i # adding samples at random time steps
     collector.addDataPoint("Accelerometer X", random.randint(1,50)/10.0, current_time) 
