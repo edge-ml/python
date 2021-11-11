@@ -7,7 +7,7 @@ Python package for [edge-ml.org](https://edge-ml.org).
 ## Usage
 ### Installation
 Install edge-ml using the follwing command.
-```
+```bash
 pip install edge-ml
 ```
 
@@ -43,6 +43,6 @@ collector.onComplete()
 ### Testing
 To run the tests please enter:
 
-```python
+```bash
 python -m unittest -v tests/all.py
 ```
