@@ -33,7 +33,7 @@ collector = edgeml.datasetCollector("https://app.edge-ml.org",
                                     False) # do not use server timestamps
 
 for i in range(500):
-    current_time = startTime + i # adding samples at random time steps
+    current_time = startTime + i * 10 # adding samples at 10 ms time steps
     collector.addDataPoint("Accelerometer X", random.randint(1,50)/10.0, current_time) 
     collector.addDataPoint("Accelerometer Y", random.randint(1,50)/10.0, current_time) 
     collector.addDataPoint("Accelerometer Z", random.randint(1,50)/10.0, current_time) 
