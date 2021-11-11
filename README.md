@@ -12,7 +12,7 @@ pip install edge-ml
 ```
 
 ### Retrieve Project
-This functionality is commonly applied if you would like to train a machine learning model from edge-ml.
+This functionality comes in handy if you would like to train a machine learning model from edge-ml data.
 ```python
 import edgeml
 
