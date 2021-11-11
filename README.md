@@ -11,7 +11,8 @@ Install edge-ml using the follwing command.
 pip install edge-ml
 ```
 
-### Get Project
+### Retrieve Project
+This functionality is commonly applied if you would like to train a machine learning model from edge-ml.
 ```python
 import edgeml
 
