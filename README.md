@@ -36,10 +36,11 @@ for i in range(500):
     collector.addDataPoint("Accelerometer", random.randint(1,50)/10.0, startTime + i) # adding samples at random time steps
 
 collector.onComplete()
+```
 
 ## Development
 ### Testing
 To run the tests please enter:
-```
+
 python -m unittest -v tests/all.py
 ```
