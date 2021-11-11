@@ -14,7 +14,7 @@ pip install edge-ml
 ### Retrieve Project
 This functionality comes in handy if you would like to train a machine learning model from edge-ml data.
 ```python
-import edgeml
+from edgeml import edgeml
 
 # get the API key from the settings of your project
 project = edgeml.getProject("https://app.edge-ml.org", PROJECT_API_KEY) 
@@ -22,7 +22,7 @@ project = edgeml.getProject("https://app.edge-ml.org", PROJECT_API_KEY)
 
 ### Push Data from Python
 ```python
-import edgeml
+from edgeml import edgeml
 import time
 
 key = "YOUR_API_KEY"
