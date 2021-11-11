@@ -42,5 +42,6 @@ collector.onComplete()
 ### Testing
 To run the tests please enter:
 
+```python
 python -m unittest -v tests/all.py
 ```
