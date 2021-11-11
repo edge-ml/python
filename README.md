@@ -29,7 +29,7 @@ key = "YOUR_API_KEY"
 startTime = time.time()
 collector = edgeml.datasetCollector("https://app.edge-ml.org",
                                     key,
-                                    "Example Dataset",
+                                    "Example Dataset", # name the dataset you would like to upload
                                     False) # do not use server timestamps
 
 labels = [random.randint(1,3) for i in range(500)]
