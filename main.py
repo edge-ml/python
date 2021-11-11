@@ -6,6 +6,7 @@ uploadDataset = "/api/deviceApi/uploadDataset"
 initDatasetIncrement = "/api/deviceApi/initDatasetIncrement"
 addDatasetIncrement = "/api/deviceApi/addDatasetIncrement"
 addDatasetIncrementBatch = "/api/deviceApi/addDatasetIncrementBatch"
+getProjectEndpoint = "/api/deviceApi/getProject"
 
 #
 #  Uploads a whole dataset to a specific project
@@ -21,6 +22,16 @@ def sendDataset(url: str, key: str, dataset: dict):
     except req.exceptions.RequestException:
         raise "error" #TODO
     
+#
+# Returns the all datasets and labels belonging to a project
+# Can be used for further processing
+# @param {string} url - The url of the backend server
+# @param {string} key - The Device-Api-Key
+#
+
+def getProject(url: str, key: str):
+    res = req.post(url + getProjectEndpoint, json = {"key": key})
+    return res.json()
 
 #
 #  @param {string} url - The url of the backend server
