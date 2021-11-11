@@ -20,7 +20,7 @@ project = edgeml.getProject("https://app.edge-ml.org", PROJECT_API_KEY)
 ```
 
 ### Push Data from Python
-```
+```python
 import edgeml
 import time
 
