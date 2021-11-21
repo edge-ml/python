@@ -57,9 +57,9 @@ class datasetCollector():
     def addDataPoint(self, sensorName: str, value: float, time: int = None):
         if (self.error):
             raise self.error
-        if (type(value) is not float): #TODO cast int to float, it may cause problems
+        if (type(value) is not float): #TODO cast int to float, it may cause problems, can value be ever int?
             raise ValueError("Datapoint is not a number")
-        if (not self.useDeviceTime and type(time) is not int):
+        if (not self.useDeviceTime and type(time) is not int and type(time) is not float):
             raise ValueError("Provide a valid timestamp")
         
         if (self.useDeviceTime):
