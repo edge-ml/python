@@ -1,6 +1,9 @@
+from typing import List
 import requests as req
+from pandas import DataFrame
 import time as timelib
 
+# TODO add typing
 
 uploadDataset = "/api/deviceApi/uploadDataset"
 initDatasetIncrement = "/api/deviceApi/initDatasetIncrement"
@@ -32,6 +35,76 @@ def sendDataset(url: str, key: str, dataset: dict):
 def getProject(url: str, key: str):
     res = req.post(url + getProjectEndpoint, json = {"key": key})
     return res.json()
+
+def __extractLabels(dataset):
+    labels = dataset['labels']
+    labelType = "No labeling, no dataframe will be generated"
+    if labels:
+        labelType = labels[0][0]['labelingName']
+    labelset = {} # stores different start and end times (intervals) belonging to a label
+    labelIds = {} # assing distinct ids to labels, required for training with data
+    labelId = 0
+    for labelData in labels:
+        for label in labelData:
+            name = label['name']
+            start = label['start']
+            end = label['end']
+            if not name in labelset:
+                labelset[name] = []
+                labelIds[name] = labelId        # assign id to the label
+                labelId = labelId + 1               
+            labelset[name].append((start, end)) # add interval to the label
+    return (labelType, labelset, labelIds)        
+
+def __processDataset(dataset):
+    dataTimeValueSensor = {}                            # sensor values fused into single timestamps  
+    sensors = dataset['sensors']
+    for sensor in sensors:
+        sensorName = sensor['name']
+        data = sensor['data']
+        for dataPoint in data:
+            timestamp = dataPoint['timestamp']
+            dataPointValue = dataPoint['datapoint']
+            if timestamp not in dataTimeValueSensor:
+                dataTimeValueSensor[timestamp] = []
+            dataTimeValueSensor[timestamp].append({'value': dataPointValue, 'sensor': sensorName})
+    return dataTimeValueSensor
+
+#
+# Returns a list of Pandas.DataFrames generated from the dataset
+# @param {string} url - The url of the backend server
+# @param {string} key - The Device-Api-Key
+# 
+
+def getDataFrames(url: str, key: str) -> List[DataFrame]:
+    datasets = getProject(url, key)['datasets']
+    dataFrames: List[DataFrame] = []
+    for dataset in datasets:
+        (labelType, labelset, labelIds) = __extractLabels(dataset)
+        dataTimeValueSensor = __processDataset(dataset)
+        dataFrame = {'id': [], labelType: []}
+        id = 0
+        for timestamp, timestampData in dataTimeValueSensor.items():
+            for data in timestampData:
+                value = data['value']
+                sensor = data['sensor']
+                if not sensor in dataFrame:
+                    dataFrame[sensor] = []
+                labelFound = False
+                for label, intervals in labelset.items():
+                    for interval in intervals:
+                        start = interval[0]
+                        end = interval[1]
+                        if timestamp >= start and timestamp <= end:
+                            if data == timestampData[0]:
+                                dataFrame[labelType].append(label)
+                                dataFrame['id'].append(id)
+                                id = id + 1
+                            dataFrame[sensor].append(value)
+                            break
+        dataFrame = DataFrame(dataFrame)
+        dataFrames.append(dataFrame)
+    return dataFrames
 
 #
 #  @param {string} url - The url of the backend server
@@ -93,3 +166,5 @@ class datasetCollector():
         if self.error:
             raise self.error
         self.__upload()
+
+getDataFrames("https://app.edge-ml.org", "KVH0X0i9GIM/aP6IUPcr88iSaCRhh8uTWsnyrz5651X7fbvPFXrU/qoFCEgCVEv/xMZA4QDaNWpaeVypImfMsw==")
