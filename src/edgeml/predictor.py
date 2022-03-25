@@ -4,6 +4,9 @@ import time as timelib
 import pandas as pd
 import tsfresh
 
+class PredictorError(Exception):
+    pass
+
 class Predictor():
     def __init__(self, edge_model, sensors, window_size, labels):
         self.edge_model = edge_model
@@ -45,6 +48,9 @@ class Predictor():
         interpolated = samples.interpolate(method="linear", limit_direction="both")
 
         window = interpolated.tail(self.window_size)
+
+        if (len(window.index) < self.window_size):
+            raise PredictorError("Not enough samples")
 
         settings = tsfresh.feature_extraction.settings.MinimalFCParameters()
         features = tsfresh.extract_features(
