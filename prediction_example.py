@@ -1,19 +1,19 @@
 import time
 from edgeml.predictor import Predictor, PredictorError
-import pickle
 
-model = # pickle.loads(...) # load model file with pickle
+from qeasdas_python import score
 
 p = Predictor(
-    None,
-    ['AAA', 'BBB', 'CCC'],
-    3
+    lambda input: score(input),
+    ['ACC_RAW_z', 'ACC_RAW_y', 'ACC_RAW_x'],
+    100,
+    ['62536901f2e49867b6936d9b', '62536901f2e49867b6936d9c']
 )
 
 while True:
-    p.add_datapoint('AAA', 0.5)
-    p.add_datapoint('BBB', 10.5)
-    p.add_datapoint('CCC', 56.5)
+	p.add_datapoint('ACC_RAW_z', getACC_RAW_z())
+	p.add_datapoint('ACC_RAW_y', getACC_RAW_y())
+	p.add_datapoint('ACC_RAW_x', getACC_RAW_x())
 
     try:
         print(p.predict())

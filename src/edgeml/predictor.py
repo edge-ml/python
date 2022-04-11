@@ -8,8 +8,8 @@ class PredictorError(Exception):
     pass
 
 class Predictor():
-    def __init__(self, edge_model, sensors, window_size, labels):
-        self.edge_model = edge_model
+    def __init__(self, predictor, sensors, window_size, labels):
+        self.predictor = predictor
         self.sensors = sensors
         self.window_size = window_size
         self.labels = labels # TODO: we don't store this in the ml backend currently afaik
@@ -57,6 +57,6 @@ class Predictor():
             window, column_id="id", default_fc_parameters=settings, n_jobs=0
         )
 
-        pred = self.edge_model.predict(features)
+        pred = self.predictor(features)
 
         return pred # TODO: use labels to map labels
