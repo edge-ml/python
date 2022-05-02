@@ -57,6 +57,7 @@ class Predictor():
             window, column_id="id", default_fc_parameters=settings, n_jobs=0
         )
 
-        pred = self.predictor(features)
+        l = features.iloc[0].values.tolist()
+        pred = self.predictor(l)
 
         return pred # TODO: use labels to map labels
