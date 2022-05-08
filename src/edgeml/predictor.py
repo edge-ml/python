@@ -33,20 +33,8 @@ class Predictor():
         self.store[sensor_name]["time"].append(time)
 
     def predict(self):
-        # python reduce is different, starts with [0] as acc and [1] as cur, no initial value but collection
-        samples = reduce(
-            lambda acc, cur: pd.merge(acc, cur, left_index=True, right_index=True, how="outer"), [
-                pd.DataFrame(
-                    data=list(value["data"]),
-                    index=pd.to_datetime(list(value["time"]), unit="ms"),
-                    columns=[key]
-                ) for key, value in self.store.items()
-            ]
-        )
-        samples["id"] = 0 # tsfresh needs an id column even when we are only interested in a single window, so stub it
-
-        interpolated = samples.interpolate(method="linear", limit_direction="both")
-
+        samples = Predictor._merge(self.store)
+        interpolated = Predictor._interpolate(samples)
         window = interpolated.tail(self.window_size)
 
         if (len(window.index) < self.window_size):
@@ -61,3 +49,22 @@ class Predictor():
         pred = self.predictor(l)
 
         return pred # TODO: use labels to map labels
+
+    @staticmethod
+    def _merge(store):
+        # python reduce is different, starts with [0] as acc and [1] as cur, no initial value but collection
+        samples = reduce(
+            lambda acc, cur: pd.merge(acc, cur, left_index=True, right_index=True, how="outer"), [
+                pd.DataFrame(
+                    data=list(value["data"]),
+                    index=pd.to_datetime(list(value["time"]), unit="ms"),
+                    columns=[key]
+                ) for key, value in store.items()
+            ]
+        )
+        samples["id"] = 0 # tsfresh needs an id column even when we are only interested in a single window, so stub it
+        return samples
+    
+    @staticmethod
+    def _interpolate(samples):
+        return samples.interpolate(method="linear", limit_direction="both")
