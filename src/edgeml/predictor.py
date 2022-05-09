@@ -27,10 +27,10 @@ class Predictor():
             raise ValueError("Sensor is not valid")
         
         if time is None:
-            time = round(timelib.time() * 1000)
+            time = timelib.time()
 
         self.store[sensor_name]["data"].append(value)
-        self.store[sensor_name]["time"].append(time)
+        self.store[sensor_name]["time"].append(round(time * 1000))
 
     def predict(self):
         samples = Predictor._merge(self.store)
@@ -42,7 +42,7 @@ class Predictor():
 
         settings = tsfresh.feature_extraction.settings.MinimalFCParameters()
         features = tsfresh.extract_features(
-            window, column_id="id", default_fc_parameters=settings, n_jobs=0
+            window, column_id="id", default_fc_parameters=settings, n_jobs=0, disable_progressbar=True
         )
 
         l = features.iloc[0].values.tolist()
