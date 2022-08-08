@@ -1,7 +1,7 @@
 from datetime import datetime
 import os
 import sys
-sys.path.insert(1, os.path.join(sys.path[0], '../src')) # add edgeml to path
+sys.path.insert(1, os.path.join(sys.path[0], '../../src')) # add edgeml to path
 
 import time as timelib
 import pandas as pd
