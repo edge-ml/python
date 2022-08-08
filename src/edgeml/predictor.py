@@ -4,19 +4,24 @@ import time as timelib
 import pandas as pd
 import tsfresh
 
+STORE_MAX_DATAPOINT_FACTOR = 10
+
 class PredictorError(Exception):
     pass
 
 class Predictor():
-    def __init__(self, predictor, sensors, window_size, labels):
+    def __init__(self, predictor, sensors, window_size, labels, scaler = None, windowing_mode = "sample"):
         self.predictor = predictor
         self.sensors = sensors
         self.window_size = window_size
-        self.labels = labels # TODO: we don't store this in the ml backend currently afaik
+        self.labels = labels
+        self.scaler = scaler
+        self.windowing_mode = windowing_mode
+        self.last_add_time = None
 
         self.store = { key: {
-            'data': deque(maxlen=self.window_size * 2),
-            'time': deque(maxlen=self.window_size * 2)
+            'data': deque(maxlen=self.window_size * STORE_MAX_DATAPOINT_FACTOR),
+            'time': deque(maxlen=self.window_size * STORE_MAX_DATAPOINT_FACTOR)
         } for key in self.sensors }
 
     def add_datapoint(self, sensor_name: str, value: float, time: int = None):
@@ -29,16 +34,25 @@ class Predictor():
         if time is None:
             time = timelib.time()
 
+        self.last_add_time = time
         self.store[sensor_name]["data"].append(value)
         self.store[sensor_name]["time"].append(round(time * 1000))
 
     def predict(self):
         samples = Predictor._merge(self.store)
         interpolated = Predictor._interpolate(samples)
-        window = interpolated.tail(self.window_size)
-
-        if (len(window.index) < self.window_size):
-            raise PredictorError("Not enough samples")
+        window = None
+        if self.windowing_mode == 'sample':
+            window = interpolated.tail(self.window_size)
+            if len(window.index) < self.window_size:
+                raise PredictorError("Not enough samples")
+        elif self.windowing_mode == 'time':
+            window = interpolated.last(str(self.window_size) + 'ms')
+            # this is probably not ideal, with edge-fel NaN values don't throw an error, so js code doesn't drop these
+            # still, this should only be a problem in the beginning phase since we do interpolation beforehand
+            window = window.dropna(axis=0)
+            if len(window.index) <= 0:
+                raise PredictorError("Empty window")
 
         settings = tsfresh.feature_extraction.settings.MinimalFCParameters()
         features = tsfresh.extract_features(
@@ -48,7 +62,10 @@ class Predictor():
         l = features.iloc[0].values.tolist()
         pred = self.predictor(l)
 
-        return pred # TODO: use labels to map labels
+        return {
+            'prediction': self.labels[pred.index(max(pred))],
+            'result': pred
+        }
 
     @staticmethod
     def _merge(store):
