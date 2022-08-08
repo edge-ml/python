@@ -58,8 +58,12 @@ class Predictor():
         features = tsfresh.extract_features(
             window, column_id="id", default_fc_parameters=settings, n_jobs=0, disable_progressbar=True
         )
-
         l = features.iloc[0].values.tolist()
+
+        if self.scaler is not None:
+            for i in range(len(l)):
+                l[i] = (l[i] - self.scaler["center"][i]) / self.scaler["scale"][i]
+        
         pred = self.predictor(l)
 
         return {
