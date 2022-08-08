@@ -33,8 +33,13 @@ def sendDataset(url: str, key: str, dataset: dict):
 #
 
 def getProject(url: str, key: str):
+    print('fetching project...')
     res = req.post(url + getProjectEndpoint, json = {"key": key})
-    return res.json()
+    if res.ok: 
+        return res.json()
+    if res.status_code == 403:
+        raise RuntimeError("Invalid key")
+    raise RuntimeError(res.reason)
 
 def __extractLabels(dataset):
     labels = dataset['labels']
@@ -166,5 +171,3 @@ class datasetCollector():
         if self.error:
             raise self.error
         self.__upload()
-
-getDataFrames("https://app.edge-ml.org", "KVH0X0i9GIM/aP6IUPcr88iSaCRhh8uTWsnyrz5651X7fbvPFXrU/qoFCEgCVEv/xMZA4QDaNWpaeVypImfMsw==")
