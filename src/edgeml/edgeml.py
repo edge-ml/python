@@ -44,7 +44,7 @@ def getProject(url: str, key: str):
 def __extractLabels(dataset):
     labels = dataset['labels']
     labelType = "No labeling, no dataframe will be generated"
-    if labels:
+    if labels and labels[0]:
         labelType = labels[0][0]['labelingName']
     labelset = {} # stores different start and end times (intervals) belonging to a label
     labelIds = {} # assing distinct ids to labels, required for training with data
