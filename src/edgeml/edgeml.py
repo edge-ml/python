@@ -67,7 +67,11 @@ def __extractLabels(dataset, labeling: str=None):
     return (labeling, labelSet, labelIds)
 
 #
-# Returns a list of Pandas.DataFrames generated from the dataset
+# Returns a list of Pandas.DataFrames generated from the datasets in the project
+# Each dataframe corresponds to a single dataset in the project
+# For each dataset only with the given labeling labeled parts are included in the dataframes
+# If no labeling is provided, first labeling with a valid label on part of the dataset will be used for that dataset
+# In this case different datasets may have different labelings as a result in the returned list
 # @param {string} url - The url of the backend server
 # @param {string} key - The Device-Api-Key
 # @param {string} labeling - Labeling used to generate the dataframes
