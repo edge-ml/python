@@ -1,7 +1,8 @@
 from typing import List
 import requests as req
-from pandas import DataFrame
+import pandas as pd
 import time as timelib
+from functools import reduce
 
 # TODO add typing
 
@@ -24,7 +25,7 @@ def sendDataset(url: str, key: str, dataset: dict):
         res = req.post(url + uploadDataset, json = {"key": key, "payload": dataset})
     except req.exceptions.RequestException:
         raise "error" #TODO
-    
+
 #
 # Returns the all datasets and labels belonging to a project
 # Can be used for further processing
@@ -35,81 +36,75 @@ def sendDataset(url: str, key: str, dataset: dict):
 def getProject(url: str, key: str):
     print('fetching project...')
     res = req.post(url + getProjectEndpoint, json = {"key": key})
-    if res.ok: 
+    if res.ok:
         return res.json()
     if res.status_code == 403:
         raise RuntimeError("Invalid key")
     raise RuntimeError(res.reason)
 
-def __extractLabels(dataset):
-    labels = dataset['labels']
-    labelType = "No labeling, no dataframe will be generated"
-    if labels:
-        labelType = labels[0][0]['labelingName']
-    labelset = {} # stores different start and end times (intervals) belonging to a label
+def __extractLabels(dataset, labeling: str=None):
+    labelingSets = dataset['labels']
+    matchedSet = None
+    for labelingSet in labelingSets:
+        if labelingSet and labelingSet[0] and (labelingSet[0]['labelingName'] == labeling or labeling == None):
+            labeling = labelingSet[0]['labelingName']
+            matchedSet = labelingSet
+            break
+    if matchedSet == None:
+        return (None, None, None)
+    labelSet = {} # stores different start and end times (intervals) belonging to a label
     labelIds = {} # assing distinct ids to labels, required for training with data
     labelId = 0
-    for labelData in labels:
-        for label in labelData:
-            name = label['name']
-            start = label['start']
-            end = label['end']
-            if not name in labelset:
-                labelset[name] = []
-                labelIds[name] = labelId        # assign id to the label
-                labelId = labelId + 1               
-            labelset[name].append((start, end)) # add interval to the label
-    return (labelType, labelset, labelIds)        
-
-def __processDataset(dataset):
-    dataTimeValueSensor = {}                            # sensor values fused into single timestamps  
-    sensors = dataset['sensors']
-    for sensor in sensors:
-        sensorName = sensor['name']
-        data = sensor['data']
-        for dataPoint in data:
-            timestamp = dataPoint['timestamp']
-            dataPointValue = dataPoint['datapoint']
-            if timestamp not in dataTimeValueSensor:
-                dataTimeValueSensor[timestamp] = []
-            dataTimeValueSensor[timestamp].append({'value': dataPointValue, 'sensor': sensorName})
-    return dataTimeValueSensor
+    for label in labelingSet:
+        name = label['name']
+        start = label['start']
+        end = label['end']
+        if not name in labelSet:
+            labelSet[name] = []
+            labelIds[name] = labelId        # assign id to the label
+            labelId = labelId + 1
+        labelSet[name].append((start, end)) # add interval to the label
+    return (labeling, labelSet, labelIds)
 
 #
 # Returns a list of Pandas.DataFrames generated from the dataset
 # @param {string} url - The url of the backend server
 # @param {string} key - The Device-Api-Key
-# 
+# @param {string} labeling - Labeling used to generate the dataframes
 
-def getDataFrames(url: str, key: str) -> List[DataFrame]:
+def getDataFrames(url: str, key: str, labeling: str=None) -> List[pd.DataFrame]:
     datasets = getProject(url, key)['datasets']
-    dataFrames: List[DataFrame] = []
+    df_project: List[pd.DataFrame] = []
     for dataset in datasets:
-        (labelType, labelset, labelIds) = __extractLabels(dataset)
-        dataTimeValueSensor = __processDataset(dataset)
-        dataFrame = {'id': [], labelType: []}
-        id = 0
-        for timestamp, timestampData in dataTimeValueSensor.items():
-            for data in timestampData:
-                value = data['value']
-                sensor = data['sensor']
-                if not sensor in dataFrame:
-                    dataFrame[sensor] = []
-                labelFound = False
-                for label, intervals in labelset.items():
-                    for interval in intervals:
-                        start = interval[0]
-                        end = interval[1]
+        (labeling, labelSet, labelIds) = __extractLabels(dataset, labeling)
+        if labelSet == None: # dataset is not labeled
+            continue
+        sensors = dataset['sensors']
+        df_dataset = []
+        for sensor in sensors:
+            sensorName = sensor['name']
+            data = sensor['data']
+            df_sensor = {'timestamp': [], 'label': [], sensorName: []}
+            for dataPoint in data:
+                timestamp = dataPoint['timestamp']
+                value = dataPoint['datapoint']
+                for label, intervals in labelSet.items():
+                    for start, end in intervals:
                         if timestamp >= start and timestamp <= end:
-                            if data == timestampData[0]:
-                                dataFrame[labelType].append(label)
-                                dataFrame['id'].append(id)
-                                id = id + 1
-                            dataFrame[sensor].append(value)
-                            break
-        dataFrame = DataFrame(dataFrame)
-        dataFrames.append(dataFrame)
-    return dataFrames
+                            df_sensor['timestamp'].append(timestamp)
+                            df_sensor[sensorName].append(value)
+                            df_sensor['label'].append(label)
+                            # can break here if it is ensured that labels are not overlapping
+            df_sensor = pd.DataFrame(df_sensor)
+            df_dataset.append(df_sensor)
+        if not df_dataset:
+            continue
+        df_dataset = reduce(
+            lambda left, right: pd.merge(
+                left, right, on=['timestamp', 'label'], how='outer'), df_dataset
+            ).sort_values('timestamp').reset_index(drop=True)
+        df_project.append(df_dataset)
+    return df_project
 
 #
 #  @param {string} url - The url of the backend server
@@ -130,7 +125,7 @@ class datasetCollector():
         self.dataStore = {'datasetKey': self.datasetKey, 'data': []}
         self.counter = 0
         self.error = None
-    
+
 
     def addDataPoint(self, sensorName: str, value: float, time: int = None):
         if (self.error):
@@ -139,7 +134,7 @@ class datasetCollector():
             raise ValueError("Datapoint is not a number")
         if (not self.useDeviceTime and type(time) is not int and type(time) is not float):
             raise ValueError("Provide a valid timestamp")
-        
+
         if (self.useDeviceTime):
             time = timelib.time()
 
@@ -157,7 +152,7 @@ class datasetCollector():
                     dataPoint['start'] = min(dataPoint['start'], time)
                     dataPoint['end'] = max(dataPoint['end'], time)
                     break
-        
+
         self.counter = self.counter + 1
         if self.counter > 1000:
             self.upload()
