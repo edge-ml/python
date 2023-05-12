@@ -86,10 +86,10 @@ class DatasetCollector:
                 None,
             )
             self.dataStore["data"][idx]["data"].append([timestamp, value])
-            # if self.dataStore["data"][idx]["start"] > timestamp:
-            #     self.dataStore["data"][idx]["start"] = timestamp
-            # if self.dataStore["data"][idx]["end"] < timestamp:
-            #     self.dataStore["data"][idx]["end"] = timestamp
+            if self.dataStore["data"][idx].get('start') is None or self.dataStore["data"][idx]["start"] > timestamp:
+                self.dataStore["data"][idx]["start"] = timestamp
+            if self.dataStore["data"][idx].get('end') is None or self.dataStore["data"][idx]["end"] < timestamp:
+                self.dataStore["data"][idx]["end"] = timestamp
 
         if time.time() * 1000 - self.lastChecked > UPLOAD_INTERVAL:
             await self.upload(self.labeling)
