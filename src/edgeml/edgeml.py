@@ -143,8 +143,19 @@ class DatasetRetriever:
         for dataset in datasets:
             df_timeseries = []
             for ts in dataset['timeSeries']:
-                df = pd.DataFrame({'timestamp': data[0], 'value': data[1]} for data in ts['data'])
+                df = pd.DataFrame({'timestamp': data[0], ts['name']: data[1]} for data in ts['data'])
+                df.set_index('timestamp', inplace=True)
                 df_timeseries.append(df)
+            df_timeseries = pd.concat(df_timeseries, axis=1, sort=False).reset_index()
+            
+            for labeling in dataset['labelings']:
+                for label in labeling['labels']:
+                    start = label['start']
+                    end = label['end']
+                    name = label['label']
+                    df_timeseries.loc[(df_timeseries['timestamp'] >= start) & (df_timeseries['timestamp'] <= end), labeling['labeling']] = name
+            
+            df_timeseries.sort_values('timestamp', inplace=True)
+            df_timeseries.reset_index(drop=True, inplace=True)
             df_datasets.append(df_timeseries)
         return df_datasets
-                
