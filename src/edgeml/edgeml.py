@@ -1,10 +1,12 @@
 import time
 import requests
+import pandas as pd
 
 URLS = {
     "uploadDataset": "/api/deviceapi/uploadDataset",
     "initDatasetIncrement": "/ds/api/dataset/init/",
     "addDatasetIncrement": "/ds/api/dataset/append/",
+    "getDatasetsInProject": "/ds/api/datasets/"
 }
 
 UPLOAD_INTERVAL = 5 * 1000
@@ -118,3 +120,31 @@ class DatasetCollector:
             raise RuntimeError(self.error)
         self.uploadComplete = True
         return True
+    
+class DatasetRetriever:
+    def __init__(self, url, apiKey):
+        self.url = url
+        self.apiKey = apiKey
+    
+    # Return raw data if pretty is set to false, otherwise return a pandas dataframe
+    def getDatasetsInProject(self, pretty=False):
+        res = requests.get(self.url + URLS['getDatasetsInProject'] + self.apiKey + '?includeTimeseriesData=False')
+        datasets = res.json()
+        if not pretty:
+            return datasets
+        df = pd.DataFrame(datasets)
+        df.drop(columns=['timeSeries', 'labelings'], inplace=True)
+        return df
+            
+    def getDataframes(self):
+        res = requests.get(self.url + URLS['getDatasetsInProject'] + self.apiKey + '?includeTimeseriesData=True')
+        datasets = res.json()
+        df_datasets = []
+        for dataset in datasets:
+            df_timeseries = []
+            for ts in dataset['timeSeries']:
+                df = pd.DataFrame({'timestamp': data[0], 'value': data[1]} for data in ts['data'])
+                df_timeseries.append(df)
+            df_datasets.append(df_timeseries)
+        return df_datasets
+                
