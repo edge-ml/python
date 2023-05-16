@@ -32,7 +32,8 @@ class TimeSeries:
         self.start = data["start"]
         self.end = data["end"]
         self.unit = data["unit"]
-        self.samplingRate = SamplingRate(data["samplingRate"]["mean"], data["samplingRate"]["var"])
+        if data["samplingRate"] is not None:
+            self.samplingRate = SamplingRate(data["samplingRate"]["mean"], data["samplingRate"]["var"])
         self.length = data["length"]
 
     @property
@@ -49,7 +50,11 @@ class TimeSeries:
         res = req.get(self._backendURL + getProjectEndpoint + self._readKey + "/" + self._datasetId + "/" + self._id)
         with tempfile.NamedTemporaryFile(suffix=".h5", delete=False) as temp_file:
             temp_file.write(res.content)
-            with h5py.File(temp_file.name, "r") as hf:
-                time_array = np.array(hf["time"])
-                data_array = np.array(hf["data"])
-                self.data = pd.DataFrame({"time": time_array, self.name: data_array})
+            temp_file.flush()
+            if self.length == 0 or self.length == None:
+                self.data = pd.DataFrame(columns=['time', self.name])
+            else:
+                with h5py.File(temp_file.name, "r") as hf:
+                    time_array = np.array(hf["time"])
+                    data_array = np.array(hf["data"])
+                    self.data = pd.DataFrame({"time": time_array, self.name: data_array})

@@ -47,10 +47,6 @@ class Dataset():
                 if labeling.name not in df.columns:
                     df[labeling.name] = ""
                 df.loc[(df['time'] >= label.start) & (df['time'] <= label.end), labeling.name] = label.name
-                
-
-
-
         return df
 
     def loadData(self):
