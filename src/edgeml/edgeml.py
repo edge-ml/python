@@ -1,7 +1,10 @@
 import requests as req
-from edgeml.consts import getProjectEndpoint
+from edgeml.consts import getProjectEndpoint, initDatasetIncrement, addDatasetIncrement
 from edgeml.Dataset import Dataset
 import time
+
+
+print(initDatasetIncrement)
 
 class DatasetReceiver:
 
@@ -72,7 +75,7 @@ class DatasetCollector:
         self.error = None
 
         res = req.post(
-            url + URLS["initDatasetIncrement"] + apiKey,
+            url + initDatasetIncrement + apiKey,
             json={
                 "name": self.name,
                 "metaData": self.metaData,
@@ -117,7 +120,7 @@ class DatasetCollector:
         tmp_dataStore = [{"name": k, "data": tmp_dataStore[k]} for k in tmp_dataStore.keys()]
         response = req.post(
             self.url
-            + URLS["addDatasetIncrement"]
+            + addDatasetIncrement
             + self.apiKey
             + "/"
             + self.datasetKey,
@@ -135,7 +138,7 @@ class DatasetCollector:
         tmp_dataStore = [{"name": k, "data": tmp_dataStore[k]} for k in tmp_dataStore.keys()]
         response = req.post(
             self.url
-            + URLS["addDatasetIncrement"]
+            + addDatasetIncrement
             + self.apiKey
             + "/"
             + self.datasetKey,
