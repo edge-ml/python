@@ -46,6 +46,8 @@ class Dataset():
             for label in labeling.labels:
                 if labeling.name not in df.columns:
                     df[labeling.name] = ""
+                if label.start < 0 or label.start > 2147483647000 or label.end < 0 or label.end > 2147483647000:
+                    continue
                 label_start = pd.to_datetime(label.start, unit='ms')
                 label_end = pd.to_datetime(label.end, unit='ms')
                 df.loc[(df['time'] >= label_start) & (df['time'] <= label_end), labeling.name] = label.name
