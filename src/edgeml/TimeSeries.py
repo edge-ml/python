@@ -57,4 +57,6 @@ class TimeSeries:
                 with h5py.File(temp_file.name, "r") as hf:
                     time_array = np.array(hf["time"])
                     data_array = np.array(hf["data"])
-                    self.data = pd.DataFrame({"time": time_array, self.name: data_array})
+                    df = pd.DataFrame({"time": time_array, self.name: data_array})
+                    df['time'] = pd.to_datetime(df['time'], unit='ms')
+                    self.data = df
