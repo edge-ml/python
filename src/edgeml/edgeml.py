@@ -1,114 +1,32 @@
-from typing import List
 import requests as req
-import pandas as pd
-import time as timelib
-from functools import reduce
+from edgeml.consts import getProjectEndpoint
+from edgeml.Dataset import Dataset
+import timelib
 
-# TODO add typing
 
-uploadDataset = "/api/deviceApi/uploadDataset"
-initDatasetIncrement = "/api/deviceApi/initDatasetIncrement"
-addDatasetIncrement = "/api/deviceApi/addDatasetIncrement"
-addDatasetIncrementBatch = "/api/deviceApi/addDatasetIncrementBatch"
-getProjectEndpoint = "/api/deviceApi/getProject"
+class edgeml:
 
-#
-#  Uploads a whole dataset to a specific project
-#  @param {string} url - The url of the backend server
-#  @param {string} key - The Device-Api-Key
-#  @param {object} dataset - The dataset to upload
-#  @returns A Promise indicating success or failure
-#
+    def __init__(self, backendURL, readKey=None, writeKey=None):
+        self.backendURL = backendURL
+        self._readKey=readKey
+        self._writeKey=writeKey
+        res = req.get(backendURL + getProjectEndpoint + readKey)
+        if res.status_code == 403:
+            raise RuntimeError("Invalid key")
+        elif res.status_code >= 300:
+            raise RuntimeError(res.reason)
+        self.datasets = []
+        res_data = res.json()
+        datasets = res_data["datasets"]
+        self.labeligns = res_data["labelings"]
+        for d in datasets:
+            tmp_dataset = Dataset(backendURL, self._readKey, self._writeKey)
+            tmp_dataset.parse(d, self.labeligns)
+            self.datasets.append(tmp_dataset)
 
-def sendDataset(url: str, key: str, dataset: dict):
-    try:
-        res = req.post(url + uploadDataset, json = {"key": key, "payload": dataset})
-    except req.exceptions.RequestException:
-        raise "error" #TODO
-
-#
-# Returns the all datasets and labels belonging to a project
-# Can be used for further processing
-# @param {string} url - The url of the backend server
-# @param {string} key - The Device-Api-Key
-#
-
-def getProject(url: str, key: str):
-    print('fetching project...')
-    res = req.post(url + getProjectEndpoint, json = {"key": key})
-    if res.ok:
-        return res.json()
-    if res.status_code == 403:
-        raise RuntimeError("Invalid key")
-    raise RuntimeError(res.reason)
-
-def __extractLabels(dataset, labeling: str=None):
-    labelingSets = dataset['labels']
-    matchedSet = None
-    for labelingSet in labelingSets:
-        if labelingSet and labelingSet[0] and (labelingSet[0]['labelingName'] == labeling or labeling == None):
-            labeling = labelingSet[0]['labelingName']
-            matchedSet = labelingSet
-            break
-    if matchedSet == None:
-        return (None, None, None)
-    labelSet = {} # stores different start and end times (intervals) belonging to a label
-    labelIds = {} # assing distinct ids to labels, required for training with data
-    labelId = 0
-    for label in labelingSet:
-        name = label['name']
-        start = label['start']
-        end = label['end']
-        if not name in labelSet:
-            labelSet[name] = []
-            labelIds[name] = labelId        # assign id to the label
-            labelId = labelId + 1
-        labelSet[name].append((start, end)) # add interval to the label
-    return (labeling, labelSet, labelIds)
-
-#
-# Returns a list of Pandas.DataFrames generated from the datasets in the project
-# Each dataframe corresponds to a single dataset in the project
-# For each dataset only with the given labeling labeled parts are included in the dataframes
-# If no labeling is provided, first labeling with a valid label on part of the dataset will be used for that dataset
-# In this case different datasets may have different labelings as a result in the returned list
-# @param {string} url - The url of the backend server
-# @param {string} key - The Device-Api-Key
-# @param {string} labeling - Labeling used to generate the dataframes
-
-def getDataFrames(url: str, key: str, labeling: str=None) -> List[pd.DataFrame]:
-    datasets = getProject(url, key)['datasets']
-    df_project: List[pd.DataFrame] = []
-    for dataset in datasets:
-        (labeling, labelSet, labelIds) = __extractLabels(dataset, labeling)
-        if labelSet == None: # dataset is not labeled
-            continue
-        sensors = dataset['sensors']
-        df_dataset = []
-        for sensor in sensors:
-            sensorName = sensor['name']
-            data = sensor['data']
-            df_sensor = {'timestamp': [], 'label': [], sensorName: []}
-            for dataPoint in data:
-                timestamp = dataPoint['timestamp']
-                value = dataPoint['datapoint']
-                for label, intervals in labelSet.items():
-                    for start, end in intervals:
-                        if timestamp >= start and timestamp <= end:
-                            df_sensor['timestamp'].append(timestamp)
-                            df_sensor[sensorName].append(value)
-                            df_sensor['label'].append(label)
-                            # can break here if it is ensured that labels are not overlapping
-            df_sensor = pd.DataFrame(df_sensor)
-            df_dataset.append(df_sensor)
-        if not df_dataset:
-            continue
-        df_dataset = reduce(
-            lambda left, right: pd.merge(
-                left, right, on=['timestamp', 'label'], how='outer'), df_dataset
-            ).sort_values('timestamp').reset_index(drop=True)
-        df_project.append(df_dataset)
-    return df_project
+    def loadData(self):
+        for d in self.datasets:
+            d.loadData()
 
 #
 #  @param {string} url - The url of the backend server
