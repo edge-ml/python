@@ -3,9 +3,6 @@ from edgeml.consts import getProjectEndpoint, initDatasetIncrement, addDatasetIn
 from edgeml.Dataset import Dataset
 import time
 
-
-print(initDatasetIncrement)
-
 class DatasetReceiver:
 
     def __init__(self, backendURL, readKey=None, writeKey=None):
