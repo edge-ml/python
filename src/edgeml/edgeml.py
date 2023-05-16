@@ -103,13 +103,11 @@ class DatasetCollector:
 
         if not isinstance(timestamp, (int)):
             raise ValueError("Provide a valid timestamp")
-
         self.dataStore[name].append([timestamp, value])
 
         if time.time() * 1000 - self.lastChecked > UPLOAD_INTERVAL:
             self.upload(self.labeling)
             self.lastChecked = time.time() * 1000
-            self.dataStore = {"data": []}
 
 
     async def upload(self, uploadLabel):
@@ -121,7 +119,7 @@ class DatasetCollector:
             + self.apiKey
             + "/"
             + self.datasetKey,
-            json={"data": tmp_dataStore, "labeling": uploadLabel},
+            json={"data": tmp_dataStore, "labeling": None},
         )
         self.dataStore = {x: [] for x in self.timeSeries}
         if response.status_code != 200:
