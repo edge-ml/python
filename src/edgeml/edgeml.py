@@ -1,172 +1,153 @@
-from typing import List
 import requests as req
-import pandas as pd
-import time as timelib
-from functools import reduce
+from edgeml.consts import getProjectEndpoint, initDatasetIncrement, addDatasetIncrement
+from edgeml.Dataset import Dataset
+import time
 
-# TODO add typing
 
-uploadDataset = "/api/deviceApi/uploadDataset"
-initDatasetIncrement = "/api/deviceApi/initDatasetIncrement"
-addDatasetIncrement = "/api/deviceApi/addDatasetIncrement"
-addDatasetIncrementBatch = "/api/deviceApi/addDatasetIncrementBatch"
-getProjectEndpoint = "/api/deviceApi/getProject"
+print(initDatasetIncrement)
 
-#
-#  Uploads a whole dataset to a specific project
-#  @param {string} url - The url of the backend server
-#  @param {string} key - The Device-Api-Key
-#  @param {object} dataset - The dataset to upload
-#  @returns A Promise indicating success or failure
-#
+class DatasetReceiver:
 
-def sendDataset(url: str, key: str, dataset: dict):
-    try:
-        res = req.post(url + uploadDataset, json = {"key": key, "payload": dataset})
-    except req.exceptions.RequestException:
-        raise "error" #TODO
+    def __init__(self, backendURL, readKey=None, writeKey=None):
+        self.backendURL = backendURL
+        self._readKey=readKey
+        self._writeKey=writeKey
+        res = req.get(backendURL + getProjectEndpoint + readKey)
+        if res.status_code == 403:
+            raise RuntimeError("Invalid key")
+        elif res.status_code >= 300:
+            raise RuntimeError(res.reason)
+        self.datasets = []
+        res_data = res.json()
+        datasets = res_data["datasets"]
+        self.labeligns = res_data["labelings"]
+        for d in datasets:
+            tmp_dataset = Dataset(backendURL, self._readKey, self._writeKey)
+            tmp_dataset.parse(d, self.labeligns)
+            self.datasets.append(tmp_dataset)
 
-#
-# Returns the all datasets and labels belonging to a project
-# Can be used for further processing
-# @param {string} url - The url of the backend server
-# @param {string} key - The Device-Api-Key
-#
+    def loadData(self):
+        for d in self.datasets:
+            d.loadData()
 
-def getProject(url: str, key: str):
-    print('fetching project...')
-    res = req.post(url + getProjectEndpoint, json = {"key": key})
-    if res.ok:
-        return res.json()
-    if res.status_code == 403:
-        raise RuntimeError("Invalid key")
-    raise RuntimeError(res.reason)
+    @property
+    def data(self):
+        return [x.data for x in self.datasets]
 
-def __extractLabels(dataset, labeling: str=None):
-    labelingSets = dataset['labels']
-    matchedSet = None
-    for labelingSet in labelingSets:
-        if labelingSet and labelingSet[0] and (labelingSet[0]['labelingName'] == labeling or labeling == None):
-            labeling = labelingSet[0]['labelingName']
-            matchedSet = labelingSet
-            break
-    if matchedSet == None:
-        return (None, None, None)
-    labelSet = {} # stores different start and end times (intervals) belonging to a label
-    labelIds = {} # assing distinct ids to labels, required for training with data
-    labelId = 0
-    for label in labelingSet:
-        name = label['name']
-        start = label['start']
-        end = label['end']
-        if not name in labelSet:
-            labelSet[name] = []
-            labelIds[name] = labelId        # assign id to the label
-            labelId = labelId + 1
-        labelSet[name].append((start, end)) # add interval to the label
-    return (labeling, labelSet, labelIds)
+    def __str__(self) -> str:
+        return "\n".join([str(x) for x in self.datasets])
 
-#
-# Returns a list of Pandas.DataFrames generated from the datasets in the project
-# Each dataframe corresponds to a single dataset in the project
-# For each dataset only with the given labeling labeled parts are included in the dataframes
-# If no labeling is provided, first labeling with a valid label on part of the dataset will be used for that dataset
-# In this case different datasets may have different labelings as a result in the returned list
-# @param {string} url - The url of the backend server
-# @param {string} key - The Device-Api-Key
-# @param {string} labeling - Labeling used to generate the dataframes
+URLS = {
+    "uploadDataset": "/api/deviceapi/uploadDataset",
+    "initDatasetIncrement": "/ds/api/dataset/init/",
+    "addDatasetIncrement": "/ds/api/dataset/append/",
+    "getDatasetsInProject": "/ds/api/datasets/"
+}
 
-def getDataFrames(url: str, key: str, labeling: str=None) -> List[pd.DataFrame]:
-    datasets = getProject(url, key)['datasets']
-    df_project: List[pd.DataFrame] = []
-    for dataset in datasets:
-        (labeling, labelSet, labelIds) = __extractLabels(dataset, labeling)
-        if labelSet == None: # dataset is not labeled
-            continue
-        sensors = dataset['sensors']
-        df_dataset = []
-        for sensor in sensors:
-            sensorName = sensor['name']
-            data = sensor['data']
-            df_sensor = {'timestamp': [], 'label': [], sensorName: []}
-            for dataPoint in data:
-                timestamp = dataPoint['timestamp']
-                value = dataPoint['datapoint']
-                for label, intervals in labelSet.items():
-                    for start, end in intervals:
-                        if timestamp >= start and timestamp <= end:
-                            df_sensor['timestamp'].append(timestamp)
-                            df_sensor[sensorName].append(value)
-                            df_sensor['label'].append(label)
-                            # can break here if it is ensured that labels are not overlapping
-            df_sensor = pd.DataFrame(df_sensor)
-            df_dataset.append(df_sensor)
-        if not df_dataset:
-            continue
-        df_dataset = reduce(
-            lambda left, right: pd.merge(
-                left, right, on=['timestamp', 'label'], how='outer'), df_dataset
-            ).sort_values('timestamp').reset_index(drop=True)
-        df_project.append(df_dataset)
-    return df_project
+UPLOAD_INTERVAL = 5 * 1000
 
-#
-#  @param {string} url - The url of the backend server
-#  @param {string} key - The Device-Api-Key
-#  @param {boolean} useDeviceTime - True if you want to use timestamps generated by the server
-#  @returns Function to upload single datapoints to one dataset inside a specific project
-#
-class datasetCollector():
-    def __init__(self, url: str, key: str, name: str, useDeviceTime: bool) -> None:
+class DatasetCollector:
+    def __init__(
+        self, url, apiKey, name, useDeviceTime, timeSeries, metaData, datasetLabel=None
+    ):
         self.url = url
-        self.key = key
+        self.apiKey = apiKey
         self.name = name
         self.useDeviceTime = useDeviceTime
+        self.timeSeries = timeSeries
+        self.metaData = metaData
+        self.datasetLabel = datasetLabel
+        self.error = None
+        self.uploadComplete = False
+        self.labeling = None
+        self.lastChecked = time.time() * 1000
 
-        res = req.post(url + initDatasetIncrement, json = {"deviceApiKey": key, "name": name})
-        #TODO error handling
-        self.datasetKey = res.json()['datasetKey']
-        self.dataStore = {'datasetKey': self.datasetKey, 'data': []}
-        self.counter = 0
+        if self.useDeviceTime:
+            self.addDataPoint = self._addDataPoint_DeviceTime
+        else:
+            self.addDataPoint = self._addDataPoint_OwnTimeStamps
+
+
+        if self.datasetLabel:
+            labeling_name, label_name = self.datasetLabel.split("_")
+            self.labeling = {"labelingName": labeling_name, "labelName": label_name}
+
         self.error = None
 
+        res = req.post(
+            url + initDatasetIncrement + apiKey,
+            json={
+                "name": self.name,
+                "metaData": self.metaData,
+                "timeSeries": self.timeSeries,
+                "labeling": self.labeling,
+            },
+        )
 
-    def addDataPoint(self, sensorName: str, value: float, time: int = None):
-        if (self.error):
-            raise self.error
-        if (type(value) is not float): #TODO cast int to float, it may cause problems, can value be ever int?
+        if res.status_code != 200:
+            raise RuntimeError(res.text.split(':')[1][1:-2])
+
+        res_data = res.json()
+        if not res_data or not res_data["id"]:
+            raise RuntimeError("Could not generate DatasetCollector")
+        self.datasetKey = res_data["id"]
+        self.dataStore = {x: [] for x in self.timeSeries}
+    
+    async def _addDataPoint_DeviceTime(self, name, value):
+        timestamp = int(time.time() * 1000)
+        await self._addDataPoint_OwnTimeStamps(timestamp, name, value)
+
+    async def _addDataPoint_OwnTimeStamps(self, timestamp, name, value):
+        if name not in self.timeSeries:
+            raise ValueError("invalid time-series name")
+
+        if not isinstance(value, (int, float)):
             raise ValueError("Datapoint is not a number")
-        if (not self.useDeviceTime and type(time) is not int and type(time) is not float):
+
+        if not isinstance(timestamp, (int)):
             raise ValueError("Provide a valid timestamp")
 
-        if (self.useDeviceTime):
-            time = timelib.time()
+        self.dataStore[name].append([timestamp, value])
 
-        if (all(dataPoint['sensorname'] != sensorName for dataPoint in self.dataStore['data'])):
-            self.dataStore['data'].append({
-                'sensorname': sensorName, #TODO sensorname is not in camelcase, maybe refactor later in db?
-                'start': time,
-                'end': time,
-                'timeSeriesData': [{'timestamp': time, 'datapoint': value}]
-            })
-        else:
-            for dataPoint in self.dataStore['data']:
-                if (dataPoint['sensorname'] == sensorName):
-                    dataPoint['timeSeriesData'].append({'timestamp': time, 'datapoint': value})
-                    dataPoint['start'] = min(dataPoint['start'], time)
-                    dataPoint['end'] = max(dataPoint['end'], time)
-                    break
+        if time.time() * 1000 - self.lastChecked > UPLOAD_INTERVAL:
+            self.upload(self.labeling)
+            self.lastChecked = time.time() * 1000
+            self.dataStore = {"data": []}
 
-        self.counter = self.counter + 1
-        if self.counter > 1000:
-            self.upload()
 
-    def __upload(self):
-        res = req.post(self.url + addDatasetIncrementBatch, json = self.dataStore)
-        self.counter = 0
-        self.dataStore = {'datasetKey': self.datasetKey, 'data': []}
+    async def upload(self, uploadLabel):
+        tmp_dataStore = self.dataStore.copy()
+        tmp_dataStore = [{"name": k, "data": tmp_dataStore[k]} for k in tmp_dataStore.keys()]
+        response = req.post(
+            self.url
+            + addDatasetIncrement
+            + self.apiKey
+            + "/"
+            + self.datasetKey,
+            json={"data": tmp_dataStore, "labeling": uploadLabel},
+        )
+        self.dataStore = {x: [] for x in self.timeSeries}
+        if response.status_code != 200:
+            raise RuntimeError("Upload failed")
 
+    # Synchronizes the server with the data when you have added all data
     def onComplete(self):
+        if self.uploadComplete:
+            raise RuntimeError("Dataset is already uploaded")
+        tmp_dataStore = self.dataStore.copy()
+        tmp_dataStore = [{"name": k, "data": tmp_dataStore[k]} for k in tmp_dataStore.keys()]
+        response = req.post(
+            self.url
+            + addDatasetIncrement
+            + self.apiKey
+            + "/"
+            + self.datasetKey,
+            json={"data": tmp_dataStore, "labeling": self.labeling},
+        )
+        if response.status_code != 200:
+            raise RuntimeError("Upload failed")
         if self.error:
-            raise self.error
-        self.__upload()
+            raise RuntimeError(self.error)
+        self.uploadComplete = True
+        self.dataStore = {x: [] for x in self.timeSeries}
+        return True
