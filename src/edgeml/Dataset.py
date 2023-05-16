@@ -52,3 +52,7 @@ class Dataset():
     def loadData(self):
         for ts in self.timeSeries:
             ts.loadData()
+
+
+    def __str__(self) -> str:
+        return f"Dataset - Name: {self.name}, ID: {self._id}, Metadata: {self.metaData}"

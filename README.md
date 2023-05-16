@@ -14,10 +14,13 @@ pip install edge-ml
 ### Retrieve Project
 This functionality comes in handy if you would like to train a machine learning model from edge-ml data.
 ```python
-from edgeml import edgeml
+from edgeml import DatasetReceiver
 
 # get the API key from the settings of your project
-project = edgeml.getProject("https://app.edge-ml.org", PROJECT_API_KEY) 
+project = DatasetReceiver("http://localhost:3004", "5d970051a8ab609f54c9466209e40fca")
+
+
+
 ```
 
 ### Push Data from Python

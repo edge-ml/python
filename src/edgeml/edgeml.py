@@ -27,6 +27,13 @@ class DatasetReceiver:
         for d in self.datasets:
             d.loadData()
 
+    @property
+    def data(self):
+        return [x.data for x in self.datasets]
+
+    def __str__(self) -> str:
+        return "\n".join([str(x) for x in self.datasets])
+
 URLS = {
     "uploadDataset": "/api/deviceapi/uploadDataset",
     "initDatasetIncrement": "/ds/api/dataset/init/",
