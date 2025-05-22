@@ -1,4 +1,4 @@
-import tempfile
+import io
 import h5py
 import numpy as np
 from edgeml.consts import getProjectEndpoint
@@ -48,13 +48,11 @@ class TimeSeries:
 
     def loadData(self) -> pd.DataFrame:
         res = req.get(self._backendURL + getProjectEndpoint + self._readKey + "/" + self._datasetId + "/" + self._id)
-        with tempfile.NamedTemporaryFile(suffix=".h5", delete=False) as temp_file:
-            temp_file.write(res.content)
-            temp_file.flush()
+        with io.BytesIO(res.content) as temp_file:
             if self.length == 0 or self.length == None:
                 self.data = pd.DataFrame(columns=['time', self.name])
             else:
-                with h5py.File(temp_file.name, "r") as hf:
+                with h5py.File(temp_file, "r") as hf:
                     time_array = np.array(hf["time"])
                     data_array = np.array(hf["data"])
                     df = pd.DataFrame({"time": time_array, self.name: data_array})

@@ -1,6 +1,6 @@
 import requests as req
-from edgeml.consts import getProjectEndpoint, initDatasetIncrement, addDatasetIncrement
-from edgeml.Dataset import Dataset
+from .consts import getProjectEndpoint, initDatasetIncrement, addDatasetIncrement
+from .Dataset import Dataset
 import time
 
 class DatasetReceiver:
@@ -82,7 +82,7 @@ class DatasetCollector:
         )
 
         if res.status_code != 200:
-            raise RuntimeError(res.text.split(':')[1][1:-2])
+            raise RuntimeError(res.text)
 
         res_data = res.json()
         if not res_data or not res_data["id"]:
@@ -101,8 +101,8 @@ class DatasetCollector:
         if not isinstance(value, (int, float)):
             raise ValueError("Datapoint is not a number")
 
-        if not isinstance(timestamp, (int)):
-            raise ValueError("Provide a valid timestamp")
+        if not isinstance(timestamp, int):
+            raise ValueError(f"Timestamp is not an integer: {timestamp}")
         self.dataStore[name].append([timestamp, value])
 
         if time.time() * 1000 - self.lastChecked > UPLOAD_INTERVAL:

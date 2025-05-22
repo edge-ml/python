@@ -1,8 +1,5 @@
-import tempfile
-import h5py
-import numpy as np
 from edgeml.TimeSeries import TimeSeries
-from edgeml.Labeling import Labeling, Label
+from edgeml.Labeling import Labeling
 from functools import reduce
 import pandas as pd 
 
