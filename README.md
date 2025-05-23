@@ -1,322 +1,174 @@
-# Obtain data from edge-ml
-
-
 ```python
-from edgeml import DatasetReceiver
+from edgeml import edgeml
+import time
+import math
 ```
 
-### 1. Create a project
-This will also pull the metadata from the server.
-Here you need the *read*-key.
-Make sure there is not trailing */* in your URL.
+# Globals
 
 
 ```python
-project = DatasetReceiver("https://edge-ml-beta.dmz.teco.edu", "8c051972b56e6b4ad6bd0bf573da580f")
-print(project)
+READ_KEY = "YOUR_READ_KEY"  # Replace with your actual read key
+WRITE_KEY = "YOUR_WRITE_KEY"  # Replace with your actual write key
+BACKEND_URL = "YOUR_BACKEND_URL"  # Replace with your actual backend URL
 ```
 
-    Dataset - Name: W_001, ID: 645a255bdd19d537f2a50126, Metadata: {}
-    Dataset - Name: W_004, ID: 645a255b7d9569d03843a12b, Metadata: {}
-    Dataset - Name: Square_003, ID: 645a255b2ce253c26b52426c, Metadata: {}
-    Dataset - Name: Square_004, ID: 645a255b1d6af5e7ed04575f, Metadata: {}
-    Dataset - Name: Square_002, ID: 645a255bc21261d4cbdc990d, Metadata: {}
-    Dataset - Name: W_002, ID: 645a255b3ebe0af02b211d5d, Metadata: {}
-    Dataset - Name: W_003, ID: 645a255b074737af782167e2, Metadata: {}
-    Dataset - Name: Square_001, ID: 645a255bbacf5ab8ff044304, Metadata: {}
-    Dataset - Name: edgemlDemo, ID: 64635a79a7a7513e8ac92d32, Metadata: {'langauge': 'python'}
-    Dataset - Name: edgemlDemo, ID: 64635a7b6fec1d2800b1cd06, Metadata: {'langauge': 'python'}
+# Upload randomly generated data to the server using the edge-ml python library
 
+### To upload data to edge-ml, we can use the DatasetCollector
 
-### 2. Actually obtain data
-Until now, we only have metadata available. We need to pull the actual time-series data using one of the following methods:
-
-*We can load the data for a single timeSeries*
+For this, we need to provide the following information:
+| **Parameter**         | **Description**                                                                 |
+|-----------------------|---------------------------------------------------------------------------------|
+| `url`                 | The URL to the edge-ml instance.                                                |
+| `write_key`           | The API key for writing into the system.                                       |
+| `use_own_timestamps`  | If `true`, users can pass timestamps to the collection function. Otherwise, timestamps are set by the `DatasetCollector`. |
+| `timeSeries`          | An array containing the names of the time series to be used.                   |
+| `metaData`            | A dictionary with metadata. Must contain only key-value pairs where both keys and values are strings. |
 
 
 ```python
+datasetName = "Example Dataset"
+useOwnTimeStamps = False
+timeSeries = ["Acc", "Mag"]
+metaData = {}
 
+collector = edgeml.DatasetCollector(BACKEND_URL,
+                                    WRITE_KEY,
+                                    datasetName,
+                                    useOwnTimeStamps,
+                                    timeSeries,
+                                    metaData)
+```
+
+### Now we can add data to this dataset
+
+For this we can call the addDataPoint-function.
+Don't forget to call onComplete after inserting all the data.
+
+
+```python
+timestamp = round(time.time() * 1000)
+for i in range(100):
+    timestamp += 40
+    x = i / 10000        # Adjust the divisor to control the frequency of the wave
+    y_acc = math.sin(x)  # Generate the y-coordinate for "Acc"
+    y_mag = math.cos(x)  # Generate the y-coordinate for "Mag"
+    await collector.addDataPoint(timestamp, "Acc", y_acc) 
+    await collector.addDataPoint(timestamp, "Mag", y_mag) 
+
+# signal data collection is complete. This uploads the remaining data to the server
+collector.onComplete()
+```
+
+
+
+
+    True
+
+
+
+# Retrieve data from edge-ml
+
+It is also possible to obtain the datasets in a project. To do so use the DatasetReceiver
+
+
+```python
+project = edgeml.DatasetReceiver(BACKEND_URL, READ_KEY)
+
+# See a single dataset
+print(project.datasets[0])
+# Or get some attribute from the dataset
+print(project.datasets[0].metaData)
+
+# Until now, we have only the metdata of the datasets.
+# We can also download the actual time-series data.
+
+# Only for one timeSeries:
 project.datasets[0].timeSeries[0].loadData()
-project.datasets[0].timeSeries[0].data.head()
-
-```
-
-
-
-
-<div>
-<style scoped>
-    .dataframe tbody tr th:only-of-type {
-        vertical-align: middle;
-    }
-
-    .dataframe tbody tr th {
-        vertical-align: top;
-    }
-
-    .dataframe thead th {
-        text-align: right;
-    }
-</style>
-<table  class="dataframe">
-  <thead>
-    <tr style="text-align: right;">
-      <th></th>
-      <th>time</th>
-      <th>x</th>
-    </tr>
-  </thead>
-  <tbody>
-    <tr>
-      <th>0</th>
-      <td>1970-01-01 00:10:23.339</td>
-      <td>-823.0</td>
-    </tr>
-    <tr>
-      <th>1</th>
-      <td>1970-01-01 00:10:23.378</td>
-      <td>-819.0</td>
-    </tr>
-    <tr>
-      <th>2</th>
-      <td>1970-01-01 00:10:23.418</td>
-      <td>-770.0</td>
-    </tr>
-    <tr>
-      <th>3</th>
-      <td>1970-01-01 00:10:23.458</td>
-      <td>-746.0</td>
-    </tr>
-    <tr>
-      <th>4</th>
-      <td>1970-01-01 00:10:23.497</td>
-      <td>-783.0</td>
-    </tr>
-  </tbody>
-</table>
-</div>
-
-
-
-*For a single dataset*
-
-
-```python
+# Or for one dataset:
 project.datasets[0].loadData()
-project.datasets[0].data.head()
-```
-
-
-
-
-<div>
-<style scoped>
-    .dataframe tbody tr th:only-of-type {
-        vertical-align: middle;
-    }
-
-    .dataframe tbody tr th {
-        vertical-align: top;
-    }
-
-    .dataframe thead th {
-        text-align: right;
-    }
-</style>
-<table class="dataframe">
-  <thead>
-    <tr style="text-align: right;">
-      <th></th>
-      <th>time</th>
-      <th>x</th>
-      <th>y</th>
-      <th>z</th>
-      <th>Gestures</th>
-    </tr>
-  </thead>
-  <tbody>
-    <tr>
-      <th>0</th>
-      <td>1970-01-01 00:10:23.339</td>
-      <td>-823.0</td>
-      <td>-45.0</td>
-      <td>4025.0</td>
-      <td></td>
-    </tr>
-    <tr>
-      <th>1</th>
-      <td>1970-01-01 00:10:23.378</td>
-      <td>-819.0</td>
-      <td>-158.0</td>
-      <td>4075.0</td>
-      <td></td>
-    </tr>
-    <tr>
-      <th>2</th>
-      <td>1970-01-01 00:10:23.418</td>
-      <td>-770.0</td>
-      <td>-255.0</td>
-      <td>4116.0</td>
-      <td></td>
-    </tr>
-    <tr>
-      <th>3</th>
-      <td>1970-01-01 00:10:23.458</td>
-      <td>-746.0</td>
-      <td>-155.0</td>
-      <td>4059.0</td>
-      <td></td>
-    </tr>
-    <tr>
-      <th>4</th>
-      <td>1970-01-01 00:10:23.497</td>
-      <td>-783.0</td>
-      <td>-104.0</td>
-      <td>3963.0</td>
-      <td></td>
-    </tr>
-  </tbody>
-</table>
-</div>
-
-
-
-*Or for all datasets in the project*
-
-
-```python
+# Or for all datasets:
 project.loadData()
-project.data[0].head()
 ```
 
+    Dataset - Name: Example Dataset, ID: 682ee7d8a3130d2327595758, Metadata: {}
+    {}
 
 
-
-<div>
-<style scoped>
-    .dataframe tbody tr th:only-of-type {
-        vertical-align: middle;
-    }
-
-    .dataframe tbody tr th {
-        vertical-align: top;
-    }
-
-    .dataframe thead th {
-        text-align: right;
-    }
-</style>
-<table  class="dataframe">
-  <thead>
-    <tr style="text-align: right;">
-      <th></th>
-      <th>time</th>
-      <th>x</th>
-      <th>y</th>
-      <th>z</th>
-      <th>Gestures</th>
-    </tr>
-  </thead>
-  <tbody>
-    <tr>
-      <th>0</th>
-      <td>1970-01-01 00:10:23.339</td>
-      <td>-823.0</td>
-      <td>-45.0</td>
-      <td>4025.0</td>
-      <td></td>
-    </tr>
-    <tr>
-      <th>1</th>
-      <td>1970-01-01 00:10:23.378</td>
-      <td>-819.0</td>
-      <td>-158.0</td>
-      <td>4075.0</td>
-      <td></td>
-    </tr>
-    <tr>
-      <th>2</th>
-      <td>1970-01-01 00:10:23.418</td>
-      <td>-770.0</td>
-      <td>-255.0</td>
-      <td>4116.0</td>
-      <td></td>
-    </tr>
-    <tr>
-      <th>3</th>
-      <td>1970-01-01 00:10:23.458</td>
-      <td>-746.0</td>
-      <td>-155.0</td>
-      <td>4059.0</td>
-      <td></td>
-    </tr>
-    <tr>
-      <th>4</th>
-      <td>1970-01-01 00:10:23.497</td>
-      <td>-783.0</td>
-      <td>-104.0</td>
-      <td>3963.0</td>
-      <td></td>
-    </tr>
-  </tbody>
-</table>
-</div>
-
-
-
-# Upload data to edge-ml
-
-### 1. Upload data using timestamps from the device
-Here you will need the *write*-key
+### Get the data in the dataset
+The datasets are provided as pandas dataframes
 
 
 ```python
-from edgeml.edgeml import DatasetCollector
-sender = DatasetCollector(url="https://edge-ml-beta.dmz.teco.edu", apiKey="4e6159c9c77124d71f298e93f1ed7254", name="edgemlDemo", useDeviceTime=True, timeSeries=["accX", "accY"], metaData={"langauge": "python"})
+# Access the data of a dataset
+print("Dataset")
+print(project.datasets[0].data.head())
 
+print("\nTimeseries")
+# Or just one time series
+print(project.datasets[0].timeSeries[0].data.head())
+
+# Or get all dataset in a project as list
+project_data = project.data
+print("\n#datasts: ", len(project_data))
 ```
+
+    Dataset
+                         time     Acc  Mag
+    0 2025-05-22 09:01:12.595  0.0000  1.0
+    1 2025-05-22 09:01:12.635  0.0001  1.0
+    2 2025-05-22 09:01:12.675  0.0002  1.0
+    3 2025-05-22 09:01:12.715  0.0003  1.0
+    4 2025-05-22 09:01:12.755  0.0004  1.0
+    
+    Timeseries
+                         time     Acc
+    0 2025-05-22 09:01:12.595  0.0000
+    1 2025-05-22 09:01:12.635  0.0001
+    2 2025-05-22 09:01:12.675  0.0002
+    3 2025-05-22 09:01:12.715  0.0003
+    4 2025-05-22 09:01:12.755  0.0004
+    
+    #datasts:  11
+
+
+### Get the labels in the dataset
 
 
 ```python
-import time
-
-for i in range (100):
-    await sender.addDataPoint(name="accX", value=i*0.1)
-    await sender.addDataPoint(name="accY", value=i*0.5)
-    time.sleep(0.01)
-sender.onComplete()
+project.datasets[0].labelings
 ```
 
 
 
 
-    True
+    []
 
 
 
-### 2. Provide your own timestamps
+### Labeling in the project
+To labelings in a project define the labels
 
 
 ```python
-from edgeml.edgeml import DatasetCollector
-sender = DatasetCollector(url="https://edge-ml-beta.dmz.teco.edu", apiKey="4e6159c9c77124d71f298e93f1ed7254", name="edgemlDemo", useDeviceTime=False, timeSeries=["accX", "accY"], metaData={"langauge": "python"})
-
+project.labelings
 ```
+
+
+
+
+    [{'_id': '682f07918245a094a595cdf5',
+      'name': 'test',
+      'labels': [{'name': 't1',
+        'color': '#0081DD',
+        '_id': '682f07918245a094a595cdf3'},
+       {'name': 't2', 'color': '#C24A5F', '_id': '682f07918245a094a595cdf4'}],
+      'projectId': '682ec257f42749f02e3a325f'}]
+
+
 
 
 ```python
-import time
 
-for i in range (100):
-    await sender.addDataPoint(timestamp=i*1000, name="accX", value=i*0.1)
-    await sender.addDataPoint(timestamp=i*1000, name="accY", value=i*0.5)
-    time.sleep(0.01)
-sender.onComplete()
 ```
-
-
-
-
-    True
-
-

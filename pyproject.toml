@@ -14,3 +14,6 @@ dynamic = ["version", "description"]
 
 [project.urls]
 Home = "https://github.com/edge-ml/python"
+
+[tool.setuptools.dynamic]
+description = {file = ["README.md"]}
