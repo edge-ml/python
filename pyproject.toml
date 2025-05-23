@@ -13,4 +13,4 @@ classifiers = ["License :: OSI Approved :: MIT License"]
 dynamic = ["version", "description"]
 
 [project.urls]
-Home = "https://edge-ml.org"
+Home = "https://github.com/edge-ml/python"
