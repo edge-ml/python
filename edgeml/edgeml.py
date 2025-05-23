@@ -2,6 +2,7 @@ import requests as req
 from .consts import getProjectEndpoint, initDatasetIncrement, addDatasetIncrement
 from .Dataset import Dataset
 import time
+import asyncio
 
 class DatasetReceiver:
 
@@ -17,10 +18,10 @@ class DatasetReceiver:
         self.datasets = []
         res_data = res.json()
         datasets = res_data["datasets"]
-        self.labeligns = res_data["labelings"]
+        self.labelings = res_data["labelings"]
         for d in datasets:
             tmp_dataset = Dataset(backendURL, self._readKey, self._writeKey)
-            tmp_dataset.parse(d, self.labeligns)
+            tmp_dataset.parse(d, self.labelings)
             self.datasets.append(tmp_dataset)
 
     def loadData(self):
@@ -45,12 +46,12 @@ UPLOAD_INTERVAL = 5 * 1000
 
 class DatasetCollector:
     def __init__(
-        self, url, apiKey, name, useDeviceTime, timeSeries, metaData, datasetLabel=None
+        self, url, write_key, name, use_own_timestamps, timeSeries, metaData, datasetLabel=None
     ):
         self.url = url
-        self.apiKey = apiKey
+        self.apiKey = write_key
         self.name = name
-        self.useDeviceTime = useDeviceTime
+        self.use_own_timestamps = use_own_timestamps
         self.timeSeries = timeSeries
         self.metaData = metaData
         self.datasetLabel = datasetLabel
@@ -59,7 +60,7 @@ class DatasetCollector:
         self.labeling = None
         self.lastChecked = time.time() * 1000
 
-        if self.useDeviceTime:
+        if self.use_own_timestamps:
             self.addDataPoint = self._addDataPoint_DeviceTime
         else:
             self.addDataPoint = self._addDataPoint_OwnTimeStamps
@@ -72,7 +73,7 @@ class DatasetCollector:
         self.error = None
 
         res = req.post(
-            url + initDatasetIncrement + apiKey,
+            url + initDatasetIncrement + self.apiKey,
             json={
                 "name": self.name,
                 "metaData": self.metaData,
@@ -106,7 +107,7 @@ class DatasetCollector:
         self.dataStore[name].append([timestamp, value])
 
         if time.time() * 1000 - self.lastChecked > UPLOAD_INTERVAL:
-            self.upload(self.labeling)
+            asyncio.create_task(self.upload(self.labeling))
             self.lastChecked = time.time() * 1000
 
 
