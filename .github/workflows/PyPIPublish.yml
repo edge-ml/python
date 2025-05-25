@@ -1,47 +1,38 @@
-# This is a basic workflow to help you get started with Actions
-
 name: PyPI Publish
 
-# Controls when the workflow will run
 on:
-  # Triggers the workflow on push or pull request events but only for the main branch
   push:
-    branches: [ main ]
-    paths-ignore: 
+    branches: [main]
+    paths-ignore:
       - '*.ipynb'
   pull_request:
-    branches: [ main ]
-
-  # Allows you to run this workflow manually from the Actions tab
+    branches: [main]
   workflow_dispatch:
 
 jobs:
   build-n-publish:
-    name: PyPI Publish
+    name: Build and Publish to PyPI
     runs-on: ubuntu-latest
+
     steps:
-    - uses: actions/checkout@master
-    - name: Set up Python 3.9
-      uses: actions/setup-python@v1
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
       with:
-        python-version: 3.9
+        python-version: 'pypy3.10'
+
     - name: Install dependencies
       run: pip install -r requirements.txt
-    - name: Install pypa/build
-      run: >-
-        python -m
-        pip install
-        build
-        --user
-    - name: Build a binary wheel and a source tarball
-      run: >-
-        python -m
-        build
-        --sdist
-        --wheel
-        --outdir dist/
-        .
-    - name: Publish distribution 📦 to PyPI
-      uses: pypa/gh-action-pypi-publish@master
+
+    - name: Install build tool
+      run: pip install build
+
+    - name: Build distributions
+      run: python -m build --sdist --wheel --outdir dist
+
+    - name: Publish to PyPI
+      uses: pypa/gh-action-pypi-publish@release/v1
       with:
         password: ${{ secrets.PYPI_API_TOKEN }}
