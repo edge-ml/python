@@ -47,7 +47,15 @@ class TimeSeries:
         self._data = value
 
     def loadData(self) -> pd.DataFrame:
-        res = req.get(self._backendURL + getProjectEndpoint + self._readKey + "/" + self._datasetId + "/" + self._id)
+        res = req.get(
+            self._backendURL
+            + getProjectEndpoint
+            + self._readKey
+            + "/"
+            + str(self._datasetId)
+            + "/"
+            + str(self._id)
+        )
         with io.BytesIO(res.content) as temp_file:
             if self.length == 0 or self.length == None:
                 self.data = pd.DataFrame(columns=['time', self.name])

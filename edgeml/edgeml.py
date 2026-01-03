@@ -59,6 +59,7 @@ class DatasetCollector:
         self.uploadComplete = False
         self.labeling = None
         self.lastChecked = time.time() * 1000
+        self._pending_uploads = set()
 
         if self.use_own_timestamps:
             self.addDataPoint = self._addDataPoint_DeviceTime
@@ -90,6 +91,11 @@ class DatasetCollector:
             raise RuntimeError("Could not generate DatasetCollector")
         self.datasetKey = res_data["id"]
         self.dataStore = {x: [] for x in self.timeSeries}
+
+    def _drain_data_store(self):
+        snapshot = {k: v[:] for k, v in self.dataStore.items()}
+        self.dataStore = {x: [] for x in self.timeSeries}
+        return snapshot
     
     async def _addDataPoint_DeviceTime(self, name, value):
         timestamp = int(time.time() * 1000)
@@ -107,43 +113,53 @@ class DatasetCollector:
         self.dataStore[name].append([timestamp, value])
 
         if time.time() * 1000 - self.lastChecked > UPLOAD_INTERVAL:
-            asyncio.create_task(self.upload(self.labeling))
+            payload = self._drain_data_store()
+            task = asyncio.create_task(self._upload_payload(payload, self.labeling))
+            self._pending_uploads.add(task)
+            task.add_done_callback(self._pending_uploads.discard)
             self.lastChecked = time.time() * 1000
 
 
-    async def upload(self, uploadLabel):
-        tmp_dataStore = self.dataStore.copy()
-        tmp_dataStore = [{"name": k, "data": tmp_dataStore[k]} for k in tmp_dataStore.keys()]
+    async def _upload_payload(self, payload, uploadLabel):
+        tmp_dataStore = [{"name": k, "data": payload[k]} for k in payload.keys()]
         response = req.post(
             self.url
             + addDatasetIncrement
             + self.apiKey
             + "/"
             + self.datasetKey,
-            json={"data": tmp_dataStore, "labeling": None},
+            json={"data": tmp_dataStore, "labeling": uploadLabel},
         )
-        self.dataStore = {x: [] for x in self.timeSeries}
         if response.status_code != 200:
-            raise RuntimeError("Upload failed")
+            raise RuntimeError(f"Upload failed: {response.status_code} {response.text}")
+
+    async def upload(self, uploadLabel):
+        payload = self._drain_data_store()
+        await self._upload_payload(payload, None)
+
+    async def _await_pending_uploads(self):
+        if not self._pending_uploads:
+            return
+        pending = list(self._pending_uploads)
+        self._pending_uploads.clear()
+        await asyncio.gather(*pending)
 
     # Synchronizes the server with the data when you have added all data
-    def onComplete(self):
+    async def onCompleteAsync(self):
         if self.uploadComplete:
             raise RuntimeError("Dataset is already uploaded")
-        tmp_dataStore = self.dataStore.copy()
-        tmp_dataStore = [{"name": k, "data": tmp_dataStore[k]} for k in tmp_dataStore.keys()]
-        response = req.post(
-            self.url
-            + addDatasetIncrement
-            + self.apiKey
-            + "/"
-            + self.datasetKey,
-            json={"data": tmp_dataStore, "labeling": self.labeling},
-        )
-        if response.status_code != 200:
-            raise RuntimeError("Upload failed")
+        await self._await_pending_uploads()
+        payload = self._drain_data_store()
+        if any(payload.values()):
+            await self._upload_payload(payload, self.labeling)
         if self.error:
             raise RuntimeError(self.error)
         self.uploadComplete = True
-        self.dataStore = {x: [] for x in self.timeSeries}
         return True
+
+    def onComplete(self):
+        try:
+            asyncio.get_running_loop()
+        except RuntimeError:
+            return asyncio.run(self.onCompleteAsync())
+        raise RuntimeError("onComplete must be awaited; use await onCompleteAsync()")
