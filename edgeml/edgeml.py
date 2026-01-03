@@ -36,10 +36,10 @@ class DatasetReceiver:
         return "\n".join([str(x) for x in self.datasets])
 
 URLS = {
-    "uploadDataset": "/api/deviceapi/uploadDataset",
-    "initDatasetIncrement": "/ds/api/dataset/init/",
-    "addDatasetIncrement": "/ds/api/dataset/append/",
-    "getDatasetsInProject": "/ds/api/datasets/"
+    "uploadDataset": "/api/v1/deviceapi/uploadDataset",
+    "initDatasetIncrement": "/api/v1/deviceapi/dataset/init/",
+    "addDatasetIncrement": "/api/v1/deviceapi/dataset/append/",
+    "getDatasetsInProject": "/api/v1/deviceapi/datasets/"
 }
 
 UPLOAD_INTERVAL = 5 * 1000
