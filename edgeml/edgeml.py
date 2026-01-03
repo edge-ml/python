@@ -1,12 +1,17 @@
-import requests as req
-from .consts import getProjectEndpoint, initDatasetIncrement, addDatasetIncrement
-from .Dataset import Dataset
-import time
+from __future__ import annotations
+
 import asyncio
+import time
+from typing import Dict, List, Optional, Tuple
+
+import requests as req
+
+from .consts import addDatasetIncrement, getProjectEndpoint, initDatasetIncrement
+from .Dataset import Dataset
 
 class DatasetReceiver:
 
-    def __init__(self, backendURL, readKey=None, writeKey=None):
+    def __init__(self, backendURL: str, readKey: Optional[str] = None, writeKey: Optional[str] = None):
         self.backendURL = backendURL
         self._readKey=readKey
         self._writeKey=writeKey
@@ -24,12 +29,12 @@ class DatasetReceiver:
             tmp_dataset.parse(d, self.labelings)
             self.datasets.append(tmp_dataset)
 
-    def loadData(self):
+    def loadData(self) -> None:
         for d in self.datasets:
             d.loadData()
 
     @property
-    def data(self):
+    def data(self) -> List[object]:
         return [x.data for x in self.datasets]
 
     def __str__(self) -> str:
@@ -46,7 +51,14 @@ UPLOAD_INTERVAL = 5 * 1000
 
 class DatasetCollector:
     def __init__(
-        self, url, write_key, name, use_own_timestamps, timeSeries, metaData, datasetLabel=None
+        self,
+        url: str,
+        write_key: str,
+        name: str,
+        use_own_timestamps: bool,
+        timeSeries: List[str],
+        metaData: Dict[str, object],
+        datasetLabel: Optional[str] = None,
     ):
         self.url = url
         self.apiKey = write_key
@@ -59,8 +71,8 @@ class DatasetCollector:
         self.uploadComplete = False
         self.labeling = None
         self.lastChecked = time.time() * 1000
-        self._upload_queue = asyncio.Queue()
-        self._worker_task = None
+        self._upload_queue: asyncio.Queue[Tuple[Optional[Dict[str, List[List[float]]]], Optional[Dict[str, str]]]] = asyncio.Queue()
+        self._worker_task: Optional[asyncio.Task[None]] = None
 
         if self.use_own_timestamps:
             self.addDataPoint = self._addDataPoint_DeviceTime
@@ -91,9 +103,9 @@ class DatasetCollector:
         if not res_data or not res_data["id"]:
             raise RuntimeError("Could not generate DatasetCollector")
         self.datasetKey = res_data["id"]
-        self.dataStore = {x: [] for x in self.timeSeries}
+        self.dataStore: Dict[str, List[List[float]]] = {x: [] for x in self.timeSeries}
 
-    async def _upload_worker(self):
+    async def _upload_worker(self) -> None:
         while True:
             payload, upload_label = await self._upload_queue.get()
             try:
@@ -103,20 +115,20 @@ class DatasetCollector:
             finally:
                 self._upload_queue.task_done()
 
-    def _ensure_worker(self):
+    def _ensure_worker(self) -> None:
         if self._worker_task is None or self._worker_task.done():
             self._worker_task = asyncio.create_task(self._upload_worker())
 
-    def _drain_data_store(self):
+    def _drain_data_store(self) -> Dict[str, List[List[float]]]:
         snapshot = {k: v[:] for k, v in self.dataStore.items()}
         self.dataStore = {x: [] for x in self.timeSeries}
         return snapshot
     
-    async def _addDataPoint_DeviceTime(self, name, value):
+    async def _addDataPoint_DeviceTime(self, name: str, value: float) -> None:
         timestamp = int(time.time() * 1000)
         await self._addDataPoint_OwnTimeStamps(timestamp, name, value)
 
-    async def _addDataPoint_OwnTimeStamps(self, timestamp, name, value):
+    async def _addDataPoint_OwnTimeStamps(self, timestamp: int, name: str, value: float) -> None:
         if name not in self.timeSeries:
             raise ValueError("invalid time-series name")
 
@@ -134,7 +146,11 @@ class DatasetCollector:
             self.lastChecked = time.time() * 1000
 
 
-    async def _upload_payload(self, payload, uploadLabel):
+    async def _upload_payload(
+        self,
+        payload: Dict[str, List[List[float]]],
+        uploadLabel: Optional[Dict[str, str]],
+    ) -> None:
         tmp_dataStore = [{"name": k, "data": payload[k]} for k in payload.keys()]
         response = req.post(
             self.url
@@ -147,12 +163,12 @@ class DatasetCollector:
         if response.status_code != 200:
             raise RuntimeError(f"Upload failed: {response.status_code} {response.text}")
 
-    async def upload(self, uploadLabel):
+    async def upload(self, uploadLabel: Optional[Dict[str, str]]) -> None:
         payload = self._drain_data_store()
         await self._upload_payload(payload, None)
 
     # Synchronizes the server with the data when you have added all data
-    async def onCompleteAsync(self):
+    async def onCompleteAsync(self) -> bool:
         if self.uploadComplete:
             raise RuntimeError("Dataset is already uploaded")
         self._ensure_worker()
@@ -170,7 +186,7 @@ class DatasetCollector:
         self.uploadComplete = True
         return True
 
-    def onComplete(self):
+    def onComplete(self) -> bool:
         try:
             asyncio.get_running_loop()
         except RuntimeError:

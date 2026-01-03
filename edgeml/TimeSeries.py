@@ -1,32 +1,43 @@
+from __future__ import annotations
+
 import io
+from typing import Optional
+
 import h5py
 import numpy as np
-from edgeml.consts import getProjectEndpoint
-import requests as req
 import pandas as pd
+import requests as req
+
+from edgeml.consts import getProjectEndpoint
 
 class SamplingRate:
-    def __init__(self, mean, var):
+    def __init__(self, mean: float, var: float):
         self.mean = mean
         self.var = var
 
 
 class TimeSeries:
-    def __init__(self, backendURL, datasetId, readKey=None, writeKey=None):
+    def __init__(
+        self,
+        backendURL: str,
+        datasetId: int,
+        readKey: Optional[str] = None,
+        writeKey: Optional[str] = None,
+    ):
         self._backendURL = backendURL
         self._datasetId = datasetId
         self._readKey = readKey
         self._writeKey = writeKey
-        self._id = None
-        self.name = None
-        self.start = None
-        self.end = None
-        self.unit = None
-        self._data = None
-        self.samplingRate = None
-        self.length = None
+        self._id: Optional[int] = None
+        self.name: Optional[str] = None
+        self.start: Optional[int] = None
+        self.end: Optional[int] = None
+        self.unit: Optional[str] = None
+        self._data: Optional[pd.DataFrame] = None
+        self.samplingRate: Optional[SamplingRate] = None
+        self.length: Optional[int] = None
 
-    def parse(self, data):
+    def parse(self, data: dict) -> None:
         self._id = data["_id"]
         self.name = data["name"]
         self.start = data["start"]
@@ -43,7 +54,7 @@ class TimeSeries:
         return self._data
 
     @data.setter
-    def data(self, value):
+    def data(self, value: pd.DataFrame) -> None:
         self._data = value
 
     def loadData(self) -> pd.DataFrame:

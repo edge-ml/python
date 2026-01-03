@@ -1,21 +1,26 @@
-from edgeml.TimeSeries import TimeSeries
-from edgeml.Labeling import Labeling
+from __future__ import annotations
+
 from functools import reduce
-import pandas as pd 
+from typing import Dict, List, Optional
+
+import pandas as pd
+
+from edgeml.Labeling import Labeling
+from edgeml.TimeSeries import TimeSeries
 
 class Dataset():
-    def __init__(self, backendURL, readKey=None, writeKey=None):
+    def __init__(self, backendURL: str, readKey: Optional[str] = None, writeKey: Optional[str] = None):
         self._backendURL = backendURL
         self._readKey = readKey
         self._writeKey = writeKey
         
-        self._id = None
-        self.name = None
-        self.metaData = None
-        self.timeSeries = None
-        self.labelings = None
+        self._id: Optional[int] = None
+        self.name: Optional[str] = None
+        self.metaData: Optional[Dict[str, object]] = None
+        self.timeSeries: Optional[List[TimeSeries]] = None
+        self.labelings: Optional[List[Labeling]] = None
 
-    def parse(self, data, labelings):
+    def parse(self, data: Dict[str, object], labelings: List[Dict[str, object]]) -> None:
         self._id = data["_id"]
         self.name = data["name"]
         self.metaData = data["metaData"]
@@ -37,7 +42,7 @@ class Dataset():
             self.labelings.append(temp_labeling)
 
     @property
-    def data(self):
+    def data(self) -> pd.DataFrame:
         df = reduce(lambda x,y: pd.merge(x,y, on='time', how='outer'), [x.data for x in self.timeSeries])
         for labeling in self.labelings:
             for label in labeling.labels:
@@ -50,7 +55,7 @@ class Dataset():
                 df.loc[(df['time'] >= label_start) & (df['time'] <= label_end), labeling.name] = label.name
         return df
 
-    def loadData(self):
+    def loadData(self) -> None:
         for ts in self.timeSeries:
             ts.loadData()
 
