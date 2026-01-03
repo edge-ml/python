@@ -59,7 +59,8 @@ class DatasetCollector:
         self.uploadComplete = False
         self.labeling = None
         self.lastChecked = time.time() * 1000
-        self._pending_uploads = set()
+        self._upload_queue = asyncio.Queue()
+        self._worker_task = None
 
         if self.use_own_timestamps:
             self.addDataPoint = self._addDataPoint_DeviceTime
@@ -92,6 +93,20 @@ class DatasetCollector:
         self.datasetKey = res_data["id"]
         self.dataStore = {x: [] for x in self.timeSeries}
 
+    async def _upload_worker(self):
+        while True:
+            payload, upload_label = await self._upload_queue.get()
+            try:
+                if payload is None:
+                    return
+                await self._upload_payload(payload, upload_label)
+            finally:
+                self._upload_queue.task_done()
+
+    def _ensure_worker(self):
+        if self._worker_task is None or self._worker_task.done():
+            self._worker_task = asyncio.create_task(self._upload_worker())
+
     def _drain_data_store(self):
         snapshot = {k: v[:] for k, v in self.dataStore.items()}
         self.dataStore = {x: [] for x in self.timeSeries}
@@ -114,9 +129,8 @@ class DatasetCollector:
 
         if time.time() * 1000 - self.lastChecked > UPLOAD_INTERVAL:
             payload = self._drain_data_store()
-            task = asyncio.create_task(self._upload_payload(payload, self.labeling))
-            self._pending_uploads.add(task)
-            task.add_done_callback(self._pending_uploads.discard)
+            self._ensure_worker()
+            await self._upload_queue.put((payload, self.labeling))
             self.lastChecked = time.time() * 1000
 
 
@@ -137,21 +151,20 @@ class DatasetCollector:
         payload = self._drain_data_store()
         await self._upload_payload(payload, None)
 
-    async def _await_pending_uploads(self):
-        if not self._pending_uploads:
-            return
-        pending = list(self._pending_uploads)
-        self._pending_uploads.clear()
-        await asyncio.gather(*pending)
-
     # Synchronizes the server with the data when you have added all data
     async def onCompleteAsync(self):
         if self.uploadComplete:
             raise RuntimeError("Dataset is already uploaded")
-        await self._await_pending_uploads()
+        self._ensure_worker()
         payload = self._drain_data_store()
         if any(payload.values()):
-            await self._upload_payload(payload, self.labeling)
+            await self._upload_queue.put((payload, self.labeling))
+        await self._upload_queue.join()
+        await self._upload_queue.put((None, None))
+        await self._upload_queue.join()
+        if self._worker_task:
+            await self._worker_task
+            self._worker_task = None
         if self.error:
             raise RuntimeError(self.error)
         self.uploadComplete = True

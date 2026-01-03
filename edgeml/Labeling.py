@@ -29,7 +29,7 @@ class Label:
         self.name = None
 
     def parse(self, data):
-        self._id = data["_id"]
+        self._id = data.get("_id", data.get("id"))
         self.start = data["start"]
         self.end = data["end"]
         self.type = data["type"]

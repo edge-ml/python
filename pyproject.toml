@@ -18,3 +18,8 @@ Home = "https://github.com/edge-ml/python"
 [tool.setuptools.dynamic]
 version = {attr = "edgeml.__version__"}
 description = {file = ["README.md"]}
+
+[tool.pytest.ini_options]
+markers = [
+    "integration: tests that require a running backend",
+]
